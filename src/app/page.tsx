@@ -25,6 +25,7 @@ export default function Home() {
   } = useStore();
 
   const [isCheckingOut] = useState(false);
+  const [variantId, setVariantId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!purchaseId) {
@@ -32,9 +33,30 @@ export default function Home() {
     }
   }, [purchaseId, generatePurchaseId]);
 
+  // Read the Shopify variantId passed by the parent store via the iframe URL.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setVariantId(params.get('variantId'));
+  }, []);
+
   const handleCheckout = () => {
-    router.push('/checkout');
+    console.log('[Customizer] Add to Basket button clicked!');
+    console.log('[Customizer] Current variantId:', variantId);
+    
+    if (!variantId) {
+      console.warn('[Customizer] No variantId in URL — cannot add to Shopify cart.');
+      return;
+    }
+
+    console.log('[Customizer] Firing postMessage to parent...');
+    // Notify the Shopify parent page to add this variant to the cart.
+    // The Shopify liquid listens for this message and calls /cart/add.js.
+    window.parent.postMessage(
+      { type: 'CUSTOMIZER_ADD_TO_CART', variantId, quantity: 1 },
+      '*'
+    );
   };
+
 
   const checkoutReady = orderMeetsPackRequirements(packs, sleeves).ok;
 
@@ -44,7 +66,7 @@ export default function Home() {
       <header className="h-14 sm:h-16 border-b border-border bg-[#181818] flex justify-between items-center px-3 sm:px-6 flex-shrink-0 z-20">
         <div className="flex items-center min-w-0">
           <img
-            src="/logo.jpeg"
+            src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo.jpeg`}
             alt="Client Logo"
             className="h-9 sm:h-12 w-auto object-contain invert mix-blend-screen opacity-90"
           />

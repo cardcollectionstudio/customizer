@@ -17,7 +17,12 @@ const nextConfig: NextConfig = {
   // Remove both once the custom domain (cardcollectionstudio.shop) is active.
   basePath: '/customizer',
   assetPrefix: '/customizer',
+
+  env: {
+    NEXT_PUBLIC_BASE_PATH: '/customizer',
+  },
 };
 
 export default nextConfig;
+
 

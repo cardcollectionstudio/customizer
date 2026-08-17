@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   title: "Card Collection Studio",
   description: "Premium Custom TCG Sleeve Designer",
   icons: {
-    icon: "/logo.jpeg",
+    icon: `${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo.jpeg`,
   }
 };
 
