@@ -2,173 +2,39 @@
 
 import { useStore } from '@/store/useStore';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, ChevronLeft, CreditCard, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronLeft, CreditCard } from 'lucide-react';
 import DesignQuantityStepper from '@/components/shared/DesignQuantityStepper';
-import { useEffect, useRef, useState } from 'react';
-import { resolveDesignHighResUpload, designHighResMatchesCanvas } from '@/lib/designS3Upload';
+import { useEffect, useState } from 'react';
 import {
   orderMeetsPackRequirements,
   designsInPack,
   sleeveCopiesForDesign,
-  sleeveCopyCanvasData,
   sleeveCopyPreviewUrl,
   totalSleevesAssigned,
   maxQuantityForDesignInPack,
 } from '@/lib/packOrder';
 import type { Pack, SleeveDesign } from '@/store/useStore';
-import { appAlert } from '@/lib/appDialog';
 import { cn } from '@/lib/utils';
+
 
 const PRICE_PER_SLEEVE = 1.0;
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { packs, sleeves, purchaseId, setDesignQuantity } = useStore();
+
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  const [status, setStatus] = useState<'idle' | 'exporting' | 'uploading' | 'success' | 'error'>('idle');
-  const [uploadInfo, setUploadInfo] = useState<{ done: number; total: number; label: string } | null>(null);
-  const isSubmittingRef = useRef(false);
 
-  const isCheckoutLocked =
-    status === 'exporting' || status === 'uploading' || status === 'success';
+  // Payment integration coming soon — handler is a no-op for now.
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const handleProceedToPayment = () => {};
 
-  const handleProceedToPayment = async () => {
-    if (isSubmittingRef.current || status === 'success') return;
-    if (sleeves.length === 0) return;
 
-    isSubmittingRef.current = true;
-    setStatus('exporting');
-
-    try {
-      const packCheck = orderMeetsPackRequirements(packs, sleeves);
-      if (!packCheck.ok) {
-        await appAlert({
-          title: 'Order not ready',
-          message: packCheck.message,
-        });
-        isSubmittingRef.current = false;
-        setStatus('idle');
-        return;
-      }
-
-      // 1. Gather all designs to upload
-      const uploadTasks: Array<{
-        design: SleeveDesign;
-        pack: Pack;
-        canvasData: string;
-      }> = [];
-
-      for (const pack of packs) {
-        const packDesigns = designsInPack(sleeves, pack.id);
-        for (const design of packDesigns) {
-          const copies = sleeveCopiesForDesign(design);
-          const canvasData =
-            design.canvasData ?? sleeveCopyCanvasData(design, copies[0]);
-          if (!canvasData) {
-            throw new Error(`"${design.name}" in "${pack.name}" is missing artwork.`);
-          }
-          uploadTasks.push({ design, pack, canvasData });
-        }
-      }
-
-      const totalCount = uploadTasks.length;
-      let processedCount = 0;
-
-      // Check if all designs are already uploaded
-      const allUploaded = uploadTasks.every(({ design, canvasData }) => {
-        const freshDesign = useStore.getState().sleeves.find((s) => s.id === design.id) ?? design;
-        return designHighResMatchesCanvas(freshDesign, canvasData);
-      });
-
-      if (!allUploaded) {
-        setStatus('uploading');
-        setUploadInfo({
-          done: 0,
-          total: totalCount,
-          label: `Uploading HD designs (0/${totalCount})…`,
-        });
-      } else {
-        setStatus('exporting');
-        setUploadInfo(null);
-      }
-
-      // 2. Resolve high-res uploads concurrently
-      const designPayloads = await Promise.all(
-        uploadTasks.map(async ({ design, pack, canvasData }) => {
-          const freshDesign =
-            useStore.getState().sleeves.find((s) => s.id === design.id) ?? design;
-
-          const highRes = await resolveDesignHighResUpload({
-            purchaseId,
-            design: freshDesign,
-            canvasData,
-            sleeveType: pack.sleeveType,
-          });
-
-          processedCount += 1;
-          if (!allUploaded) {
-            setUploadInfo({
-              done: processedCount,
-              total: totalCount,
-              label: `Uploading HD designs (${processedCount}/${totalCount})…`,
-            });
-          }
-
-          const copies = sleeveCopiesForDesign(design);
-          const sleeveQty = design.quantity ?? copies.length;
-
-          return {
-            packName: pack.name,
-            packSize: pack.size,
-            sleeveType: pack.sleeveType,
-            name: design.name,
-            uploadId: highRes.uploadId,
-            mimeType: highRes.mimeType,
-            size: highRes.size,
-            quantity: sleeveQty,
-          };
-        })
-      );
-
-      setUploadInfo({ done: totalCount, total: totalCount, label: 'Finalizing order…' });
-      setStatus('uploading');
-      const res = await fetch('/api/order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          purchaseId,
-          designs: designPayloads,
-          remarks: 'From Basket Checkout',
-        }),
-      });
-
-      const data = await res.json();
-      if (!data.success) throw new Error(data.message || 'Failed to log order');
-
-      setStatus('success');
-      setUploadInfo(null);
-      await appAlert({
-        title: 'Order uploaded',
-        message: 'Your designs were uploaded successfully. Moving to payment… (Mock)',
-      });
-    } catch (e: unknown) {
-      console.error('Checkout error', e);
-      const message = e instanceof Error ? e.message : 'Unknown checkout error';
-      isSubmittingRef.current = false;
-      setStatus('error');
-      setUploadInfo(null);
-      await appAlert({
-        title: 'Checkout failed',
-        message: `Unable to process order: ${message}`,
-        variant: 'destructive',
-      });
-    }
-  };
 
   if (!isMounted) return null;
 
@@ -356,47 +222,16 @@ export default function CheckoutPage() {
               </p>
             )}
 
-            {uploadInfo && (
-              <div className="mb-3 rounded-lg border border-border bg-black/30 px-3 py-2 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground truncate">
-                  {uploadInfo.label}
-                </p>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/10">
-                    <div
-                      className="h-full bg-primary transition-all"
-                      style={{
-                        width: `${Math.min(100, (uploadInfo.done / Math.max(1, uploadInfo.total)) * 100)}%`,
-                      }}
-                    />
-                  </div>
-                  <span className="text-[10px] tabular-nums">
-                    {uploadInfo.done}/{uploadInfo.total}
-                  </span>
-                </div>
-              </div>
-            )}
 
             <button
               type="button"
               className="w-full py-4 bg-primary text-black font-bold uppercase tracking-wider rounded flex items-center justify-center gap-2 hover:brightness-110 transition-all disabled:opacity-50 disabled:pointer-events-none disabled:cursor-not-allowed"
               onClick={handleProceedToPayment}
-              disabled={isCheckoutLocked || sleeves.length === 0 || !packCheck.ok}
-              aria-disabled={isCheckoutLocked || sleeves.length === 0 || !packCheck.ok}
+              disabled={sleeves.length === 0 || !packCheck.ok}
+              aria-disabled={sleeves.length === 0 || !packCheck.ok}
             >
-              {status === 'exporting' || status === 'uploading' ? (
-                <Loader2 size={20} className="animate-spin" />
-              ) : (
-                <CreditCard size={20} />
-              )}
-
-              {status === 'exporting' || status === 'uploading'
-                ? 'Please wait...'
-                : status === 'success'
-                  ? 'Order Placed'
-                  : status === 'error'
-                    ? 'Retry Checkout'
-                    : 'Proceed to Payment'}
+              <CreditCard size={20} />
+              Proceed to Payment
             </button>
 
             <p className="text-center text-xs text-muted-foreground mt-4">
