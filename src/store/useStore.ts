@@ -1,0 +1,407 @@
+import { create } from 'zustand';
+import { DEFAULT_IMAGE_ADJUSTMENTS, type ImageAdjustments } from '@/lib/imageAdjustments';
+import {
+  type OrderPackSize,
+  isOrderPackSize,
+  designsInPack,
+  maxQuantityForDesignInPack,
+  totalSleevesAssigned,
+} from '@/lib/packOrder';
+
+export type EditorTab = 'Photos' | 'Adjustments' | 'Frames' | 'Text' | 'Preview' | null;
+
+export interface Pack {
+  id: string;
+  name: string;
+  size: OrderPackSize;
+  sleeveType: 'Standard' | 'Japanese';
+}
+
+export interface SleeveCopy {
+  id: string;
+  canvasData?: string;
+  previewUrl?: string;
+}
+
+export interface SleeveDesign {
+  id: string;
+  packId: string;
+  name: string;
+  canvasData?: string;
+  previewUrl?: string;
+  /** Sleeves inside the parent pack that use this design. Sums per pack must equal pack.size. */
+  quantity?: number;
+  sleeveCopies?: SleeveCopy[];
+  /** Shared photo filters for every sleeve in this design (not per-copy). */
+  imageAdjustments?: ImageAdjustments;
+  /** S3 key for print-ready upload (flushed when switching designs). */
+  highResS3Key?: string;
+  highResMimeType?: string;
+  highResSize?: number;
+  /** Canvas JSON that was last uploaded as high-res (skip re-upload when unchanged). */
+  highResCanvasData?: string;
+}
+
+function createSleeveCopies(
+  quantity: number,
+  seed?: SleeveCopy[],
+  canvasData?: string,
+  previewUrl?: string
+): SleeveCopy[] {
+  return Array.from({ length: quantity }, (_, index) => {
+    const existing = seed?.[index];
+    return existing
+      ? {
+          ...existing,
+          ...(canvasData !== undefined && !existing.canvasData ? { canvasData } : {}),
+          ...(previewUrl !== undefined && !existing.previewUrl ? { previewUrl } : {}),
+        }
+      : {
+          id: crypto.randomUUID(),
+          ...(canvasData !== undefined ? { canvasData } : {}),
+          ...(previewUrl !== undefined ? { previewUrl } : {}),
+        };
+  });
+}
+
+function resizeSleeveCopies(design: SleeveDesign, quantity: number): SleeveCopy[] {
+  return createSleeveCopies(quantity, design.sleeveCopies, design.canvasData, design.previewUrl);
+}
+
+interface AppState {
+  purchaseId: string;
+  /** All packs in the order. Each pack chooses its own size and sleeve cut. */
+  packs: Pack[];
+  /** Flat list of designs across all packs; each design references a pack via packId. */
+  sleeves: SleeveDesign[];
+  activeSleeveId: string | null;
+  activeSleeveCopyId: string | null;
+  /** Counts successful photo uploads in the editor (capped at sum of pack sizes per session). */
+  sessionImageUploadCount: number;
+  remarks: string;
+  activeTab: EditorTab;
+  /** @deprecated Mobile order sheet removed; use mobileDesignsSheetExpanded. */
+  mobileOrderOpen: boolean;
+  /** Mobile designs strip: expanded (thumbnails visible) vs collapsed (handle only). */
+  mobileDesignsSheetExpanded: boolean;
+  /** Mobile bottom sheet to add another pack (after the first). */
+  mobileAddPackOpen: boolean;
+
+  // Editor state
+  activeObjectType: string | null;
+  photoAdjustments: ImageAdjustments;
+  textProps: {
+    fontFamily: string;
+    fontSize: number;
+    fill: string;
+    stroke: string;
+    strokeWidth: number;
+    backgroundEnabled: boolean;
+    backgroundColor: string;
+    fontWeight: string | number;
+    fontStyle: string;
+    underline: boolean;
+    textAlign: string;
+  };
+
+  // Actions
+  incrementSessionImageUpload: () => void;
+  /** Create a new pack with chosen size + cut and seed it with one design at quantity 1. */
+  createPack: (opts: { size: OrderPackSize; sleeveType: 'Standard' | 'Japanese' }) => void;
+  removePack: (packId: string) => void;
+  updatePack: (packId: string, data: Partial<Omit<Pack, 'id'>>) => void;
+  /** Add another design in the pack, starting at quantity 1 (client raises with +). */
+  addDesignToPack: (packId: string) => void;
+  /** Update how many sleeves of a design's pack use this design. Clamped to 1..(packSize - others). */
+  setDesignQuantity: (designId: string, quantity: number) => void;
+  updateSleeve: (id: string, data: Partial<SleeveDesign>) => void;
+  updateSleeveCopy: (designId: string, copyId: string, data: Partial<SleeveCopy>) => void;
+  /** Remove a design. If it was the last in its pack, the pack is also removed. */
+  removeSleeve: (id: string) => void;
+  /** Focus a design in the editor. Omit `copyId` to edit shared artwork for all sleeves of that design. */
+  setActiveSleeve: (id: string, copyId?: string | null) => void;
+  setRemarks: (remarks: string) => void;
+  generatePurchaseId: () => void;
+  setActiveTab: (tab: EditorTab) => void;
+  setMobileOrderOpen: (open: boolean) => void;
+  setMobileDesignsSheetExpanded: (open: boolean) => void;
+  setMobileAddPackOpen: (open: boolean) => void;
+  setActiveObjectType: (type: string | null) => void;
+  setTextProps: (props: Partial<AppState['textProps']>) => void;
+  setPhotoAdjustments: (props: Partial<ImageAdjustments>) => void;
+}
+
+export const useStore = create<AppState>((set) => ({
+  purchaseId: '',
+  packs: [],
+  sleeves: [],
+  activeSleeveId: null,
+  activeSleeveCopyId: null,
+  sessionImageUploadCount: 0,
+  remarks: '',
+  activeTab: 'Photos',
+  mobileOrderOpen: false,
+  mobileDesignsSheetExpanded: true,
+  mobileAddPackOpen: false,
+  activeObjectType: null,
+  photoAdjustments: { ...DEFAULT_IMAGE_ADJUSTMENTS },
+  textProps: {
+    fontFamily: 'Arial',
+    fontSize: 32,
+    fill: '#ffffff',
+    stroke: '#000000',
+    strokeWidth: 4,
+    backgroundEnabled: false,
+    backgroundColor: '#000000',
+    fontWeight: 'normal',
+    fontStyle: 'normal',
+    underline: false,
+    textAlign: 'center',
+  },
+
+  generatePurchaseId: () => {
+    const id = 'PUR-' + Math.random().toString(36).substring(2, 9).toUpperCase();
+    set({ purchaseId: id });
+  },
+
+  incrementSessionImageUpload: () =>
+    set((state) => ({ sessionImageUploadCount: state.sessionImageUploadCount + 1 })),
+
+  createPack: ({ size, sleeveType }) =>
+    set((state) => {
+      if (!isOrderPackSize(size)) return state;
+      const packId = crypto.randomUUID();
+      const designId = crypto.randomUUID();
+      const packIndex = state.packs.length + 1;
+      const sleeveCopies = createSleeveCopies(1);
+      return {
+        packs: [
+          ...state.packs,
+          {
+            id: packId,
+            name: `Pack #${packIndex}`,
+            size,
+            sleeveType,
+          },
+        ],
+        sleeves: [
+          ...state.sleeves,
+          {
+            id: designId,
+            packId,
+            name: 'Design #1',
+            quantity: 1,
+            sleeveCopies,
+          },
+        ],
+        activeSleeveId: designId,
+        activeSleeveCopyId: null,
+      };
+    }),
+
+  removePack: (packId) =>
+    set((state) => {
+      const packIdx = state.packs.findIndex((p) => p.id === packId);
+      if (packIdx === -1) return state;
+      const newPacks = state.packs.filter((p) => p.id !== packId);
+      const newSleeves = state.sleeves.filter((s) => s.packId !== packId);
+      let nextActiveId: string | null = state.activeSleeveId;
+      if (nextActiveId && !newSleeves.some((s) => s.id === nextActiveId)) {
+        nextActiveId = newSleeves[0]?.id ?? null;
+      }
+      return {
+        packs: newPacks,
+        sleeves: newSleeves,
+        activeSleeveId: nextActiveId,
+        activeSleeveCopyId:
+          nextActiveId === state.activeSleeveId ? state.activeSleeveCopyId : null,
+      };
+    }),
+
+  updatePack: (packId, data) =>
+    set((state) => ({
+      packs: state.packs.map((p) => (p.id === packId ? { ...p, ...data } : p)),
+    })),
+
+  addDesignToPack: (packId) =>
+    set((state) => {
+      const pack = state.packs.find((p) => p.id === packId);
+      if (!pack) return state;
+      const packDesigns = designsInPack(state.sleeves, packId);
+      const remaining = pack.size - totalSleevesAssigned(packDesigns);
+      if (remaining < 1) return state;
+      const id = crypto.randomUUID();
+      const nextIndex = packDesigns.length + 1;
+      const sleeveCopies = createSleeveCopies(1);
+      return {
+        sleeves: [
+          ...state.sleeves,
+          {
+            id,
+            packId,
+            name: `Design #${nextIndex}`,
+            quantity: 1,
+            sleeveCopies,
+          },
+        ],
+        activeSleeveId: id,
+        activeSleeveCopyId: null,
+      };
+    }),
+
+  setDesignQuantity: (designId, quantity) =>
+    set((state) => {
+      const design = state.sleeves.find((s) => s.id === designId);
+      if (!design) return state;
+      const pack = state.packs.find((p) => p.id === design.packId);
+      if (!pack) return state;
+      const packDesigns = designsInPack(state.sleeves, pack.id);
+      const max = maxQuantityForDesignInPack(packDesigns, designId, pack.size);
+      const clamped = Math.max(1, Math.min(max, Math.floor(quantity)));
+      const resized = resizeSleeveCopies(design, clamped);
+      const activeCopyStillExists =
+        state.activeSleeveId !== designId ||
+        !state.activeSleeveCopyId ||
+        resized.some((copy) => copy.id === state.activeSleeveCopyId);
+
+      let parentCanvasData = design.canvasData;
+      let parentPreviewUrl = design.previewUrl;
+      if (clamped === 1 && resized[0]) {
+        if (resized[0].canvasData) {
+          parentCanvasData = resized[0].canvasData;
+          parentPreviewUrl = resized[0].previewUrl;
+        } else if (design.canvasData) {
+          resized[0].canvasData = design.canvasData;
+          resized[0].previewUrl = design.previewUrl;
+        }
+      }
+
+      return {
+        sleeves: state.sleeves.map((s) =>
+          s.id === designId
+            ? {
+                ...s,
+                quantity: clamped,
+                sleeveCopies: resized,
+                canvasData: parentCanvasData,
+                previewUrl: parentPreviewUrl,
+              }
+            : s
+        ),
+        activeSleeveCopyId: activeCopyStillExists ? state.activeSleeveCopyId : null,
+      };
+    }),
+
+  updateSleeve: (id, data) =>
+    set((state) => ({
+      sleeves: state.sleeves.map((s) => {
+        if (s.id !== id) return s;
+        let nextCopies = s.sleeveCopies;
+        if (s.sleeveCopies) {
+          nextCopies = s.sleeveCopies.map((copy) => ({
+            ...copy,
+            ...(data.canvasData !== undefined ? { canvasData: data.canvasData } : {}),
+            ...(data.previewUrl !== undefined ? { previewUrl: data.previewUrl } : {}),
+          }));
+        }
+        return { ...s, ...data, sleeveCopies: nextCopies };
+      }),
+    })),
+
+  updateSleeveCopy: (designId, copyId, data) =>
+    set((state) => ({
+      sleeves: state.sleeves.map((s) => {
+        if (s.id !== designId) return s;
+        const copies = resizeSleeveCopies(s, s.quantity ?? 0);
+        const nextCopies = copies.map((copy) =>
+          copy.id === copyId ? { ...copy, ...data } : copy
+        );
+        const isSingleCopy = nextCopies.length <= 1;
+        const seedDesignCanvas =
+          (isSingleCopy || !s.canvasData) &&
+          typeof data.canvasData === 'string' &&
+          typeof data.previewUrl === 'string';
+        return {
+          ...s,
+          ...(seedDesignCanvas
+            ? { canvasData: data.canvasData, previewUrl: data.previewUrl }
+            : {}),
+          sleeveCopies: nextCopies,
+        };
+      }),
+    })),
+
+  removeSleeve: (id) =>
+    set((state) => {
+      const design = state.sleeves.find((s) => s.id === id);
+      if (!design) return state;
+      const packDesigns = designsInPack(state.sleeves, design.packId);
+      const isLastInPack = packDesigns.length === 1;
+
+      const newSleeves = state.sleeves.filter((s) => s.id !== id);
+      const newPacks = isLastInPack
+        ? state.packs.filter((p) => p.id !== design.packId)
+        : state.packs;
+
+      let nextActiveId: string | null = state.activeSleeveId;
+      if (nextActiveId === id) {
+        if (!isLastInPack) {
+          nextActiveId = packDesigns.find((d) => d.id !== id)?.id ?? null;
+        } else {
+          nextActiveId = newSleeves[0]?.id ?? null;
+        }
+      } else if (nextActiveId && !newSleeves.some((s) => s.id === nextActiveId)) {
+        nextActiveId = newSleeves[0]?.id ?? null;
+      }
+
+      return {
+        packs: newPacks,
+        sleeves: newSleeves,
+        activeSleeveId: nextActiveId,
+        activeSleeveCopyId:
+          nextActiveId === state.activeSleeveId ? state.activeSleeveCopyId : null,
+      };
+    }),
+
+  setActiveSleeve: (id, copyId?) =>
+    set((state) => {
+      const design = state.sleeves.find((s) => s.id === id);
+      const copies = design ? resizeSleeveCopies(design, design.quantity ?? 0) : [];
+      const nextCopyId = copyId !== undefined ? copyId : null;
+      return {
+        sleeves: design && copies.length !== (design.sleeveCopies?.length ?? 0)
+          ? state.sleeves.map((s) => (s.id === id ? { ...s, sleeveCopies: copies } : s))
+          : state.sleeves,
+        activeSleeveId: id,
+        activeSleeveCopyId: nextCopyId,
+      };
+    }),
+
+  setRemarks: (remarks) => set({ remarks }),
+
+  setActiveTab: (tab) => set({ activeTab: tab }),
+
+  setMobileOrderOpen: (open) => set({ mobileOrderOpen: open }),
+
+  setMobileDesignsSheetExpanded: (open) => set({ mobileDesignsSheetExpanded: open }),
+  setMobileAddPackOpen: (open) => set({ mobileAddPackOpen: open }),
+
+  setActiveObjectType: (type) => set({ activeObjectType: type }),
+
+  setTextProps: (props) =>
+    set((state) => ({
+      textProps: { ...state.textProps, ...props },
+    })),
+
+  setPhotoAdjustments: (props) =>
+    set((state) => ({
+      photoAdjustments: { ...state.photoAdjustments, ...props },
+    })),
+}));
+
+if (typeof window !== 'undefined') {
+  (window as any).__STORE__ = useStore;
+}
+
+
+

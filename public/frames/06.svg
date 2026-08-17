@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 560" width="400" height="560">
+    <defs>
+      <filter id="shadow">
+        <feDropShadow dx="0" dy="0" stdDeviation="4" flood-opacity="0.3"/>
+      </filter>
+      
+    </defs>
+    <path d="M0,0 H400 V560 H0 Z M30,10 
+    H370 Q390,10 390,30
+    V530 Q390,550 370,550
+    H30 Q10,550 10,530
+    V30 Q10,10 30,10 Z" fill="white" fill-rule="evenodd" filter="url(#shadow)" />
+  </svg>
