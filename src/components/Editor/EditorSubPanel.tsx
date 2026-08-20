@@ -66,11 +66,14 @@ export default function EditorSubPanel() {
         className={cn(
           'hidden lg:flex lg:flex-col',
           'lg:relative lg:w-72 lg:h-full lg:rounded-none lg:border-r lg:border-t-0 lg:max-h-none lg:shadow-none',
-          'bg-[#222222] overflow-y-auto p-4'
+          'bg-[#222222]'
         )}
       >
-        <h2 className="text-xl font-serif italic mb-4">{activeTab}</h2>
+        <div className="flex-shrink-0 border-b border-border p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{activeTab}</h2>
+        </div>
 
+        <div className="flex-1 overflow-y-auto p-4">
       {activeTab === 'Photos' && (
         <div className="flex flex-col gap-6">
           <section>
@@ -108,7 +111,7 @@ export default function EditorSubPanel() {
                 </span>
                 <div className="text-center">
                   <span className="block text-sm font-semibold text-foreground group-hover:text-primary transition-colors">
-                    {replacingPhoto ? 'Replace photo' : 'Upload images'}
+                    {replacingPhoto ? 'Replace image' : 'Upload image'}
                   </span>
                   <span className="mt-1 block text-[11px] leading-snug text-muted-foreground">
                     {replacingPhoto
@@ -679,6 +682,7 @@ export default function EditorSubPanel() {
           {activeTab} options coming soon.
         </div>
       )}
+        </div>
       </div>
   );
 }

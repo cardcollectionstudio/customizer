@@ -36,18 +36,7 @@ export default function MultiSleeveList() {
   const [editName, setEditName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Setup form for adding a pack (first pack OR additional pack)
-  const [setupOpen, setSetupOpen] = useState(false);
-  const [setupSize, setSetupSize] = useState<OrderPackSize>(DEFAULT_ORDER_PACK_SIZE);
-  const [setupCut, setSetupCut] = useState<SleeveCut>('Standard');
-
-  // Preview panel — collapsed by default
-  const [previewOpen, setPreviewOpen] = useState(false);
-
   const hasPacks = packs.length > 0;
-  // Only show the emergency setup form when there are no packs at all.
-  // Normally page.tsx auto-creates the first pack from URL params on mount.
-  const showSetup = !hasPacks;
 
   useEffect(() => {
     if (editingId && inputRef.current) {
@@ -80,14 +69,6 @@ export default function MultiSleeveList() {
     setEditingId(null);
   };
 
-  const onConfirmSetup = () => {
-    createPack({ size: setupSize, sleeveType: setupCut, material: 'standard' });
-    setSetupOpen(false);
-    // Reset form defaults for the next time the user opens it
-    setSetupSize(DEFAULT_ORDER_PACK_SIZE);
-    setSetupCut('Standard');
-  };
-
   const onRemovePack = async (pack: Pack) => {
     const packDesigns = designsInPack(sleeves, pack.id);
     const designCount = packDesigns.length;
@@ -117,23 +98,6 @@ export default function MultiSleeveList() {
     removeSleeve(design.id);
   };
 
-  // One preview tile per design (not per sleeve quantity)
-  const previewDesignTiles = packs.flatMap((pack) => {
-    const designs = designsInPack(sleeves, pack.id);
-    return designs.map((d) => ({
-      key: d.id,
-      packName: pack.name,
-      designName: d.name,
-      previewUrl: d.previewUrl,
-      designId: d.id,
-      quantity: d.quantity ?? 0,
-    }));
-  });
-  const totalAssignedAcrossOrder = packs.reduce(
-    (sum, pack) => sum + totalSleevesAssigned(designsInPack(sleeves, pack.id)),
-    0
-  );
-  const totalCapacityAcrossOrder = packs.reduce((s, p) => s + p.size, 0);
 
   return (
     <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-3">
@@ -156,7 +120,7 @@ export default function MultiSleeveList() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-foreground">{pack.name}</p>
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {pack.size} sleeves · {pack.sleeveType} · {pack.material.replace(/_/g, ' ')}
+                      {pack.sleeveType} · {pack.size}
                     </p>
                   </div>
                 </div>
@@ -377,168 +341,10 @@ export default function MultiSleeveList() {
         </div>
       )}
 
-      {/* Setup card — opens for first pack and when adding a new pack */}
-      {showSetup && (
-        <div className="rounded-xl border border-border bg-black/30 p-3">
-          <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-            {hasPacks ? `Add Pack #${packs.length + 1}` : 'Set up your first pack'}
-          </p>
-          <p className="mb-3 text-[11px] text-muted-foreground">
-            Pick a size and sleeve cut for this pack. Each pack is locked once added.
-          </p>
-
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Pack size
-          </p>
-          <div className="mb-3 flex gap-2">
-            {ORDER_PACK_SIZES.map((size) => (
-              <button
-                key={size}
-                type="button"
-                onClick={() => setSetupSize(size)}
-                className={cn(
-                  'flex-1 rounded-lg border py-2.5 text-sm font-semibold transition-colors lg:py-3.5 lg:text-base',
-                  setupSize === size
-                    ? 'border-primary bg-primary/15 text-primary'
-                    : 'border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground'
-                )}
-              >
-                {size} sleeves
-              </button>
-            ))}
-          </div>
-
-          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Sleeve cut
-          </p>
-          <div className="mb-3 flex gap-2">
-            {(['Standard', 'Japanese'] as const).map((t) => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => setSetupCut(t)}
-                className={cn(
-                  'flex-1 rounded-lg border py-2.5 text-sm font-semibold transition-colors lg:py-3.5 lg:text-base',
-                  setupCut === t
-                    ? 'border-primary bg-primary/15 text-primary'
-                    : 'border-border text-muted-foreground hover:border-muted-foreground hover:text-foreground'
-                )}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-
-          <p className="text-[11px] text-muted-foreground">
-            Summary:{' '}
-            <span className="text-foreground">
-              {setupSize} sleeves · {setupCut}
-            </span>
-          </p>
-          <div className="mt-3 flex gap-2">
-            {hasPacks && (
-              <button
-                type="button"
-                onClick={() => setSetupOpen(false)}
-                className="flex-1 rounded-lg border border-border py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
-              >
-                Cancel
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onConfirmSetup}
-              className="flex-[2] rounded-lg bg-primary py-2 text-xs font-bold uppercase tracking-wider text-black transition hover:brightness-110"
-            >
-              {hasPacks ? 'Add pack' : 'Start designing'}
-            </button>
-          </div>
-        </div>
-      )}
 
 
-      {/* Preview — desktop sidebar only */}
-      {hasPacks && (
-        <div className="hidden lg:block rounded-lg border border-border/80 bg-black/30 p-2">
-          <button
-            type="button"
-            onClick={() => setPreviewOpen((v) => !v)}
-            aria-expanded={previewOpen}
-            aria-controls="preview-grid"
-            className="flex w-full items-center justify-between gap-2 rounded text-left hover:bg-white/[0.03] transition-colors px-1 py-0.5"
-          >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-              Preview
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="text-[10px] tabular-nums text-muted-foreground">
-                {totalAssignedAcrossOrder}/{totalCapacityAcrossOrder} sleeves
-              </span>
-              <ChevronDown
-                size={14}
-                className={cn(
-                  'text-muted-foreground transition-transform',
-                  previewOpen ? 'rotate-180' : 'rotate-0'
-                )}
-              />
-            </span>
-          </button>
-          {previewOpen && (
-            <div id="preview-grid" className="mt-2">
-              <p className="mb-2 text-[10px] leading-snug text-muted-foreground/90">
-                One tile per design — tap to edit. Sleeve count is set with +/− on each design.
-              </p>
-              <div
-                className={cn(
-                  'max-h-52 overflow-y-auto overscroll-contain rounded-md border border-white/[0.06] bg-black/25 p-2 lg:max-h-[22rem]',
-                  '[scrollbar-width:thin]'
-                )}
-              >
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
-                  {previewDesignTiles.map((tile) => (
-                    <button
-                      key={tile.key}
-                      type="button"
-                      onClick={() => setActiveSleeve(tile.designId)}
-                      title={
-                        tile.quantity > 1
-                          ? `${tile.packName} · ${tile.designName} · ${tile.quantity} sleeves`
-                          : `${tile.packName} · ${tile.designName}`
-                      }
-                      className={cn(
-                        'relative aspect-[52/72] overflow-hidden rounded border',
-                        tile.designId === activeSleeveId
-                          ? 'border-primary ring-1 ring-primary/40'
-                          : tile.previewUrl
-                            ? 'border-primary/40'
-                            : 'border-border/80'
-                      )}
-                    >
-                      {tile.previewUrl ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
-                          src={tile.previewUrl}
-                          alt=""
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <span className="flex h-full w-full items-center justify-center bg-black/55 text-[7px] text-muted-foreground">
-                          —
-                        </span>
-                      )}
-                      {tile.quantity > 1 && (
-                        <span className="absolute bottom-0.5 right-0.5 rounded bg-black/75 px-1 py-px font-mono text-[8px] text-primary">
-                          ×{tile.quantity}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+
+
     </div>
   );
 }

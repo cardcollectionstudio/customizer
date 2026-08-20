@@ -20,8 +20,8 @@ export default function MobileEditorTopBar() {
     <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border bg-[#181818] px-3 py-2 lg:hidden">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-foreground">{pack.name}</p>
-        <p className="text-[10px] text-muted-foreground">
-          {pack.sleeveType === 'Japanese' ? 'Japanese' : 'Standard'} · {pack.size} cap
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
+          {pack.sleeveType === 'Japanese' ? 'Japanese' : 'Standard'} · {pack.size}
         </p>
       </div>
       <p className="shrink-0 text-xs font-mono tabular-nums text-primary">

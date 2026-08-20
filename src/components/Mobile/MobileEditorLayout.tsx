@@ -5,7 +5,6 @@ import { useStore } from '@/store/useStore';
 import CanvasEditor from '@/components/Editor/CanvasEditor';
 import EditorSidebar from '@/components/Editor/EditorSidebar';
 import MobileEditorToolDock from '@/components/Mobile/MobileEditorToolDock';
-import MobilePackSetupSheet from '@/components/Mobile/MobilePackSetupSheet';
 import MobileEditorTopBar from '@/components/Mobile/MobileEditorTopBar';
 import MobileUploadDock, { type MobileUploadDockHandle } from '@/components/Mobile/MobileUploadDock';
 import MobileDesignsBottomSheet from '@/components/Mobile/MobileDesignsBottomSheet';
@@ -24,8 +23,6 @@ export default function MobileEditorLayout() {
 
   return (
     <>
-      <MobilePackSetupSheet onStarted={handlePackStarted} />
-
       <div className="flex min-h-0 flex-1 flex-col lg:hidden">
         {packs.length > 0 && <MobileEditorTopBar />}
 
@@ -34,11 +31,7 @@ export default function MobileEditorLayout() {
             <CanvasEditor isMobileView={true} />
           ) : (
             <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              {packs.length === 0 ? (
-                <p>Set up your pack to start designing.</p>
-              ) : (
-                <p className="italic">Open Photos to pick a design and upload.</p>
-              )}
+              <p className="italic">Open Photos to pick a design and upload.</p>
             </div>
           )}
         </section>

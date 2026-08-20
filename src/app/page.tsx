@@ -16,8 +16,6 @@ import { dispatchCanvasAction } from '@/lib/events';
 export default function Home() {
   const router = useRouter();
   const {
-    purchaseId,
-    generatePurchaseId,
     packs,
     sleeves,
     activeSleeveId,
@@ -26,12 +24,6 @@ export default function Home() {
 
   const [isCheckingOut] = useState(false);
   const [variantId, setVariantId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!purchaseId) {
-      generatePurchaseId();
-    }
-  }, [purchaseId, generatePurchaseId]);
 
   // Read the Shopify variantId + pack config passed via the iframe URL.
   // Auto-create the first pack so the user goes straight into designing.
@@ -99,11 +91,6 @@ export default function Home() {
           >
             <X size={22} />
           </button>
-          <img
-            src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo.jpeg`}
-            alt="Client Logo"
-            className="h-9 sm:h-12 w-auto object-contain invert mix-blend-screen opacity-90"
-          />
         </div>
 
         {activeSleeveId && (
@@ -130,9 +117,7 @@ export default function Home() {
         )}
 
         <div className="flex items-center gap-3 sm:gap-6 min-w-0">
-          <span className="hidden sm:inline text-sm text-muted-foreground font-mono truncate">
-            ID: {purchaseId}
-          </span>
+
           <button
             onClick={handleCheckout}
             disabled={isCheckingOut || !checkoutReady}
@@ -180,7 +165,7 @@ export default function Home() {
 
         <aside className="flex w-80 flex-shrink-0 flex-col border-l border-border bg-[#1e1e1e] z-10">
           <div className="flex-shrink-0 border-b border-border p-4">
-            <h2 className="text-sm font-semibold uppercase text-muted-foreground">Order overview</h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Your Designs</h2>
           </div>
 
           <div className="flex-1 overflow-y-auto min-h-0">

@@ -67,7 +67,6 @@ function resizeSleeveCopies(design: SleeveDesign, quantity: number): SleeveCopy[
 }
 
 interface AppState {
-  purchaseId: string;
   /** All packs in the order. Each pack chooses its own size and sleeve cut. */
   packs: Pack[];
   /** Flat list of designs across all packs; each design references a pack via packId. */
@@ -119,7 +118,6 @@ interface AppState {
   /** Focus a design in the editor. Omit `copyId` to edit shared artwork for all sleeves of that design. */
   setActiveSleeve: (id: string, copyId?: string | null) => void;
   setRemarks: (remarks: string) => void;
-  generatePurchaseId: () => void;
   setActiveTab: (tab: EditorTab) => void;
   setMobileOrderOpen: (open: boolean) => void;
   setMobileDesignsSheetExpanded: (open: boolean) => void;
@@ -130,7 +128,6 @@ interface AppState {
 }
 
 export const useStore = create<AppState>((set) => ({
-  purchaseId: '',
   packs: [],
   sleeves: [],
   activeSleeveId: null,
@@ -157,10 +154,7 @@ export const useStore = create<AppState>((set) => ({
     textAlign: 'center',
   },
 
-  generatePurchaseId: () => {
-    const id = 'PUR-' + Math.random().toString(36).substring(2, 9).toUpperCase();
-    set({ purchaseId: id });
-  },
+
 
   incrementSessionImageUpload: () =>
     set((state) => ({ sessionImageUploadCount: state.sessionImageUploadCount + 1 })),
@@ -178,7 +172,11 @@ export const useStore = create<AppState>((set) => ({
           ...state.packs,
           {
             id: packId,
-            name: `Your Custom Sleeves`,
+            name: material === 'premium_frosted_matte' 
+              ? 'Premium Frosted Matte Card Sleeves' 
+              : material === 'premium_clear'
+              ? 'Premium Clear Card Sleeves'
+              : 'Standard Card Sleeves',
             size,
             sleeveType,
             material,
