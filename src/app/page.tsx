@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '@/store/useStore';
 import CanvasEditor from '@/components/Editor/CanvasEditor';
-import Mockup3D from '@/components/Preview/Mockup3D';
 import MultiSleeveList from '@/components/Order/MultiSleeveList';
 import EditorSidebar from '@/components/Editor/EditorSidebar';
 import EditorSubPanel from '@/components/Editor/EditorSubPanel';
@@ -11,7 +10,7 @@ import MobileEditorLayout from '@/components/Mobile/MobileEditorLayout';
 
 import { ShoppingCart, Undo2, Redo2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { orderMeetsPackRequirements } from '@/lib/packOrder';
+import { orderMeetsPackRequirements, isOrderPackSize, isSleeveMaterial, isValidMaterialForCut } from '@/lib/packOrder';
 import { dispatchCanvasAction } from '@/lib/events';
 
 export default function Home() {
@@ -22,6 +21,7 @@ export default function Home() {
     packs,
     sleeves,
     activeSleeveId,
+    createPack,
   } = useStore();
 
   const [isCheckingOut] = useState(false);
@@ -33,11 +33,35 @@ export default function Home() {
     }
   }, [purchaseId, generatePurchaseId]);
 
-  // Read the Shopify variantId passed by the parent store via the iframe URL.
+  // Read the Shopify variantId + pack config passed via the iframe URL.
+  // Auto-create the first pack so the user goes straight into designing.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setVariantId(params.get('variantId'));
-  }, []);
+
+    if (packs.length === 0) {
+      // count: only 65 or 110 accepted — all else defaults to 65
+      const rawCount = parseInt(params.get('count') ?? '65', 10);
+      const count = isOrderPackSize(rawCount) ? rawCount : 65;
+
+      // size: Standard or Japanese — all else defaults to Standard
+      // We do a case-insensitive check in case Shopify sends "japanese"
+      const rawSize = (params.get('size') ?? 'standard').toLowerCase();
+      const sleeveType: 'Standard' | 'Japanese' =
+        rawSize === 'japanese' ? 'Japanese' : 'Standard';
+
+      // type: must be a valid material and compatible with the sleeve cut
+      const rawType = decodeURIComponent(params.get('type') ?? 'standard');
+      const material =
+        isSleeveMaterial(rawType) && isValidMaterialForCut(rawType, sleeveType)
+          ? rawType
+          : 'standard';
+
+      createPack({ size: count, sleeveType, material });
+    }
+  }, []); // intentionally mount-only
+
 
   const handleCheckout = () => {
     console.log('[Customizer] Add to Basket button clicked!');
@@ -151,15 +175,6 @@ export default function Home() {
 
           <div className="flex-1 overflow-y-auto min-h-0">
             <MultiSleeveList />
-          </div>
-
-          <div className="relative flex h-64 flex-shrink-0 flex-col border-t border-border bg-black">
-            <div className="z-10 border-b border-border bg-[#181818] p-2">
-              <h2 className="text-xs font-semibold uppercase text-muted-foreground">3D Preview</h2>
-            </div>
-            <div className="flex-1 min-h-0">
-              <Mockup3D />
-            </div>
           </div>
         </aside>
       </div>

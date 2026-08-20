@@ -11,6 +11,31 @@ export function isOrderPackSize(n: number): n is OrderPackSize {
   return n === 65 || n === 110;
 }
 
+/** The three material finishes available for custom sleeves. */
+export type SleeveMaterial = 'standard' | 'premium_clear' | 'premium_frosted_matte';
+
+export const SLEEVE_MATERIALS: readonly SleeveMaterial[] = [
+  'standard',
+  'premium_clear',
+  'premium_frosted_matte',
+];
+
+export function isSleeveMaterial(s: string): s is SleeveMaterial {
+  return SLEEVE_MATERIALS.includes(s as SleeveMaterial);
+}
+
+/**
+ * premium_frosted_matte is only available for Standard sleeves — not Japanese.
+ * All other material + cut combinations are valid.
+ */
+export function isValidMaterialForCut(
+  material: SleeveMaterial,
+  cut: 'Standard' | 'Japanese'
+): boolean {
+  if (cut === 'Japanese' && material === 'premium_frosted_matte') return false;
+  return true;
+}
+
 /** Block the next upload once session count reaches the total order capacity. */
 export function shouldBlockNextImageUpload(
   packs: Pack[],

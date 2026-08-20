@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { DEFAULT_IMAGE_ADJUSTMENTS, type ImageAdjustments } from '@/lib/imageAdjustments';
 import {
   type OrderPackSize,
+  type SleeveMaterial,
   isOrderPackSize,
   designsInPack,
   maxQuantityForDesignInPack,
@@ -15,7 +16,9 @@ export interface Pack {
   name: string;
   size: OrderPackSize;
   sleeveType: 'Standard' | 'Japanese';
+  material: SleeveMaterial;
 }
+
 
 export interface SleeveCopy {
   id: string;
@@ -101,8 +104,8 @@ interface AppState {
 
   // Actions
   incrementSessionImageUpload: () => void;
-  /** Create a new pack with chosen size + cut and seed it with one design at quantity 1. */
-  createPack: (opts: { size: OrderPackSize; sleeveType: 'Standard' | 'Japanese' }) => void;
+  /** Create a new pack with chosen size, cut, and material; seeds it with one design at full pack quantity. */
+  createPack: (opts: { size: OrderPackSize; sleeveType: 'Standard' | 'Japanese'; material: SleeveMaterial }) => void;
   removePack: (packId: string) => void;
   updatePack: (packId: string, data: Partial<Omit<Pack, 'id'>>) => void;
   /** Add another design in the pack, starting at quantity 1 (client raises with +). */
@@ -162,13 +165,14 @@ export const useStore = create<AppState>((set) => ({
   incrementSessionImageUpload: () =>
     set((state) => ({ sessionImageUploadCount: state.sessionImageUploadCount + 1 })),
 
-  createPack: ({ size, sleeveType }) =>
+  createPack: ({ size, sleeveType, material }) =>
     set((state) => {
       if (!isOrderPackSize(size)) return state;
       const packId = crypto.randomUUID();
       const designId = crypto.randomUUID();
       const packIndex = state.packs.length + 1;
-      const sleeveCopies = createSleeveCopies(1);
+      // First design fills the entire pack by default so the bar is green immediately.
+      const sleeveCopies = createSleeveCopies(size);
       return {
         packs: [
           ...state.packs,
@@ -177,6 +181,7 @@ export const useStore = create<AppState>((set) => ({
             name: `Pack #${packIndex}`,
             size,
             sleeveType,
+            material,
           },
         ],
         sleeves: [
@@ -185,7 +190,7 @@ export const useStore = create<AppState>((set) => ({
             id: designId,
             packId,
             name: 'Design #1',
-            quantity: 1,
+            quantity: size,
             sleeveCopies,
           },
         ],
@@ -223,20 +228,38 @@ export const useStore = create<AppState>((set) => ({
       const pack = state.packs.find((p) => p.id === packId);
       if (!pack) return state;
       const packDesigns = designsInPack(state.sleeves, packId);
-      const remaining = pack.size - totalSleevesAssigned(packDesigns);
-      if (remaining < 1) return state;
+      // Need at least 1 sleeve per design — cannot split further than pack.size designs.
+      if (pack.size < packDesigns.length + 1) return state;
+
       const id = crypto.randomUUID();
       const nextIndex = packDesigns.length + 1;
-      const sleeveCopies = createSleeveCopies(1);
+
+      // Even split: distribute pack.size across all designs (existing + new) as evenly as possible.
+      // First `remainder` designs get base+1, the rest get base.
+      const totalDesigns = packDesigns.length + 1;
+      const base = Math.floor(pack.size / totalDesigns);
+      const remainder = pack.size % totalDesigns;
+      const quantities = Array.from({ length: totalDesigns }, (_, i) =>
+        base + (i < remainder ? 1 : 0)
+      );
+      const newDesignQty = quantities[quantities.length - 1];
+
       return {
         sleeves: [
-          ...state.sleeves,
+          // Redistribute existing designs with new quantities
+          ...state.sleeves.map((s) => {
+            const idx = packDesigns.findIndex((d) => d.id === s.id);
+            if (idx === -1) return s;
+            const newQty = quantities[idx];
+            return { ...s, quantity: newQty, sleeveCopies: resizeSleeveCopies(s, newQty) };
+          }),
+          // New design
           {
             id,
             packId,
             name: `Design #${nextIndex}`,
-            quantity: 1,
-            sleeveCopies,
+            quantity: newDesignQty,
+            sleeveCopies: createSleeveCopies(newDesignQty),
           },
         ],
         activeSleeveId: id,
@@ -330,6 +353,7 @@ export const useStore = create<AppState>((set) => ({
     set((state) => {
       const design = state.sleeves.find((s) => s.id === id);
       if (!design) return state;
+      const pack = state.packs.find((p) => p.id === design.packId);
       const packDesigns = designsInPack(state.sleeves, design.packId);
       const isLastInPack = packDesigns.length === 1;
 
@@ -338,20 +362,34 @@ export const useStore = create<AppState>((set) => ({
         ? state.packs.filter((p) => p.id !== design.packId)
         : state.packs;
 
+      // Rebalance remaining designs in the same pack evenly
+      let finalSleeves = newSleeves;
+      if (!isLastInPack && pack) {
+        const remaining = newSleeves.filter((s) => s.packId === design.packId);
+        const base = Math.floor(pack.size / remaining.length);
+        const rem = pack.size % remaining.length;
+        finalSleeves = newSleeves.map((s) => {
+          if (s.packId !== design.packId) return s;
+          const idx = remaining.findIndex((r) => r.id === s.id);
+          const qty = base + (idx < rem ? 1 : 0);
+          return { ...s, quantity: qty, sleeveCopies: resizeSleeveCopies(s, qty) };
+        });
+      }
+
       let nextActiveId: string | null = state.activeSleeveId;
       if (nextActiveId === id) {
         if (!isLastInPack) {
           nextActiveId = packDesigns.find((d) => d.id !== id)?.id ?? null;
         } else {
-          nextActiveId = newSleeves[0]?.id ?? null;
+          nextActiveId = finalSleeves[0]?.id ?? null;
         }
-      } else if (nextActiveId && !newSleeves.some((s) => s.id === nextActiveId)) {
-        nextActiveId = newSleeves[0]?.id ?? null;
+      } else if (nextActiveId && !finalSleeves.some((s) => s.id === nextActiveId)) {
+        nextActiveId = finalSleeves[0]?.id ?? null;
       }
 
       return {
         packs: newPacks,
-        sleeves: newSleeves,
+        sleeves: finalSleeves,
         activeSleeveId: nextActiveId,
         activeSleeveCopyId:
           nextActiveId === state.activeSleeveId ? state.activeSleeveCopyId : null,

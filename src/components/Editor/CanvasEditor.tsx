@@ -739,18 +739,20 @@ export default function CanvasEditor({ isMobileView = false }: { isMobileView?: 
           existing.forEach(obj => cvs.remove(obj));
 
           if (type !== 'none') {
+            const BASE = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
             const frameSrc = {
-              'standard': '/frames/01.svg?v=8',
-              'fade': '/frames/02.svg?v=8',
-              'torn1': '/frames/03.svg?v=8',
-              'torn2': '/frames/04.svg?v=8',
-              'wobble': '/frames/05.svg?v=8',
-              'floral': '/frames/06.svg?v=8',
-              'scallop': '/frames/07.svg?v=8',
-              'stamp': '/frames/08.svg?v=8',
-              'wavy': '/frames/09.svg?v=8',
-              'zigzag': '/frames/10.svg?v=8',
+              'standard': `${BASE}/frames/01.svg?v=8`,
+              'fade': `${BASE}/frames/02.svg?v=8`,
+              'torn1': `${BASE}/frames/03.svg?v=8`,
+              'torn2': `${BASE}/frames/04.svg?v=8`,
+              'wobble': `${BASE}/frames/05.svg?v=8`,
+              'floral': `${BASE}/frames/06.svg?v=8`,
+              'scallop': `${BASE}/frames/07.svg?v=8`,
+              'stamp': `${BASE}/frames/08.svg?v=8`,
+              'wavy': `${BASE}/frames/09.svg?v=8`,
+              'zigzag': `${BASE}/frames/10.svg?v=8`,
             }[type as string];
+
 
             if (frameSrc) {
               FabricImage.fromURL(frameSrc).then((img) => {

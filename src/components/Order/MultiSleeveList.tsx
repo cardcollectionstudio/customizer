@@ -45,7 +45,9 @@ export default function MultiSleeveList() {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const hasPacks = packs.length > 0;
-  const showSetup = !hasPacks || setupOpen;
+  // Only show the emergency setup form when there are no packs at all.
+  // Normally page.tsx auto-creates the first pack from URL params on mount.
+  const showSetup = !hasPacks;
 
   useEffect(() => {
     if (editingId && inputRef.current) {
@@ -79,7 +81,7 @@ export default function MultiSleeveList() {
   };
 
   const onConfirmSetup = () => {
-    createPack({ size: setupSize, sleeveType: setupCut });
+    createPack({ size: setupSize, sleeveType: setupCut, material: 'standard' });
     setSetupOpen(false);
     // Reset form defaults for the next time the user opens it
     setSetupSize(DEFAULT_ORDER_PACK_SIZE);
@@ -154,18 +156,9 @@ export default function MultiSleeveList() {
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-foreground">{pack.name}</p>
                     <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                      {pack.size} sleeves ·{' '}
-                      {pack.sleeveType === 'Japanese' ? 'Japanese' : 'Standard'}
+                      {pack.size} sleeves · {pack.sleeveType} · {pack.material.replace(/_/g, ' ')}
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onRemovePack(pack)}
-                    className="shrink-0 rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    title="Remove this pack"
-                  >
-                    <Trash2 size={14} />
-                  </button>
                 </div>
 
                 {/* Progress bar */}
@@ -457,17 +450,6 @@ export default function MultiSleeveList() {
         </div>
       )}
 
-      {/* Add another pack trigger */}
-      {hasPacks && !setupOpen && (
-        <button
-          type="button"
-          onClick={() => setSetupOpen(true)}
-          className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-        >
-          <Plus size={14} />
-          Add another pack
-        </button>
-      )}
 
       {/* Preview — desktop sidebar only */}
       {hasPacks && (

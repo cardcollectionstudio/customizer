@@ -21,7 +21,7 @@ export default function MobilePackSetupSheet({ onStarted }: Props) {
   const [setupCut, setSetupCut] = useState<SleeveCut>('Standard');
 
   const isFirstPack = packs.length === 0;
-  const isOpen = isFirstPack || mobileAddPackOpen;
+  const isOpen = isFirstPack; // additional packs not supported
 
   if (!isOpen) return null;
 
@@ -31,7 +31,7 @@ export default function MobilePackSetupSheet({ onStarted }: Props) {
   };
 
   const handleConfirm = () => {
-    createPack({ size: setupSize, sleeveType: setupCut });
+    createPack({ size: setupSize, sleeveType: setupCut, material: 'standard' });
     if (!isFirstPack) {
       setMobileAddPackOpen(false);
       resetForm();
