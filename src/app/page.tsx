@@ -8,7 +8,7 @@ import EditorSidebar from '@/components/Editor/EditorSidebar';
 import EditorSubPanel from '@/components/Editor/EditorSubPanel';
 import MobileEditorLayout from '@/components/Mobile/MobileEditorLayout';
 
-import { ShoppingCart, Undo2, Redo2 } from 'lucide-react';
+import { ShoppingCart, Undo2, Redo2, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { orderMeetsPackRequirements, isOrderPackSize, isSleeveMaterial, isValidMaterialForCut } from '@/lib/packOrder';
 import { dispatchCanvasAction } from '@/lib/events';
@@ -64,7 +64,7 @@ export default function Home() {
 
 
   const handleCheckout = () => {
-    console.log('[Customizer] Add to Basket button clicked!');
+    console.log('[Customizer] Add to Cart button clicked!');
     console.log('[Customizer] Current variantId:', variantId);
     
     if (!variantId) {
@@ -81,6 +81,9 @@ export default function Home() {
     );
   };
 
+  const handleClose = () => {
+    window.parent.postMessage({ type: 'CUSTOMIZER_CLOSE' }, '*');
+  };
 
   const checkoutReady = orderMeetsPackRequirements(packs, sleeves).ok;
 
@@ -88,7 +91,14 @@ export default function Home() {
     <main className="h-[100dvh] w-screen bg-background text-foreground flex flex-col overflow-hidden font-sans">
       {/* Top Header */}
       <header className="h-14 sm:h-16 border-b border-border bg-[#181818] flex justify-between items-center px-3 sm:px-6 flex-shrink-0 z-20">
-        <div className="flex items-center min-w-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <button
+            onClick={handleClose}
+            className="p-1.5 -ml-2 text-muted-foreground hover:text-white transition-colors flex-shrink-0"
+            title="Close Editor"
+          >
+            <X size={22} />
+          </button>
           <img
             src={`${process.env.NEXT_PUBLIC_BASE_PATH || ''}/logo.jpeg`}
             alt="Client Logo"
@@ -128,16 +138,16 @@ export default function Home() {
             disabled={isCheckingOut || !checkoutReady}
             title={
               checkoutReady
-                ? 'Open basket'
+                ? 'Add to cart'
                 : 'Every pack needs designs with photos, and each pack’s quantities must match its size'
             }
             className="px-3 sm:px-6 py-2 sm:py-2.5 rounded bg-primary text-black font-bold uppercase tracking-wider text-xs sm:text-sm hover:brightness-110 transition-all disabled:opacity-50 flex items-center gap-2"
           >
             <ShoppingCart size={18} strokeWidth={2.5} />
             <span className="hidden xs:inline sm:inline">
-              {isCheckingOut ? 'Processing…' : 'Add to Basket'}
+              {isCheckingOut ? 'Processing…' : 'Add to Cart'}
             </span>
-            <span className="xs:hidden sm:hidden">Basket</span>
+            <span className="xs:hidden sm:hidden">Cart</span>
           </button>
         </div>
       </header>

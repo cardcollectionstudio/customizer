@@ -273,10 +273,16 @@ export default function MultiSleeveList() {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onRemoveDesign(pack, design);
+                                    if (packDesigns.length > 1) {
+                                      onRemoveDesign(pack, design);
+                                    }
                                   }}
-                                  className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                                  title="Remove this design"
+                                  disabled={packDesigns.length === 1}
+                                  className={cn(
+                                    "rounded p-1 text-muted-foreground",
+                                    packDesigns.length === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-destructive/10 hover:text-destructive'
+                                  )}
+                                  title={packDesigns.length === 1 ? "Cannot remove the only design" : "Remove this design"}
                                 >
                                   <Trash2 size={12} />
                                 </button>

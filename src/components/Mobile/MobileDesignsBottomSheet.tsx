@@ -65,15 +65,11 @@ export default function MobileDesignsBottomSheet() {
     : 1;
 
   const onRemoveDesign = async (targetPack: Pack, design: SleeveDesign) => {
-    const targetDesigns = designsInPack(sleeves, targetPack.id);
-    const isLast = targetDesigns.length === 1;
     const ok = await appConfirm({
-      title: isLast ? 'Remove pack?' : 'Remove design?',
-      message: isLast
-        ? `"${design.name}" is the only design in "${targetPack.name}". Removing it will also remove the pack.`
-        : `Remove "${design.name}"? Its ${design.quantity ?? 0} sleeve${(design.quantity ?? 0) === 1 ? '' : 's'} in "${targetPack.name}" will be unassigned.`,
+      title: 'Remove design?',
+      message: `Remove "${design.name}"? Its ${design.quantity ?? 0} sleeve${(design.quantity ?? 0) === 1 ? '' : 's'} in "${targetPack.name}" will be unassigned.`,
       variant: 'destructive',
-      confirmLabel: isLast ? 'Remove pack' : 'Remove',
+      confirmLabel: 'Remove',
     });
     if (!ok) return;
     removeSleeve(design.id);
@@ -176,11 +172,17 @@ export default function MobileDesignsBottomSheet() {
                   </button>
                   <button
                     type="button"
+                    disabled={packDesigns.length === 1}
                     onClick={(e) => {
                       e.stopPropagation();
-                      void onRemoveDesign(pack, design);
+                      if (packDesigns.length > 1) {
+                        void onRemoveDesign(pack, design);
+                      }
                     }}
-                    className="absolute left-0.5 top-0.5 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-black/80 text-white/90 shadow-sm transition-colors hover:bg-destructive hover:text-white"
+                    className={cn(
+                      "absolute left-0.5 top-0.5 z-10 flex h-4 w-4 items-center justify-center rounded-full bg-black/80 shadow-sm transition-colors",
+                      packDesigns.length === 1 ? "opacity-50 text-white/50 cursor-not-allowed" : "text-white/90 hover:bg-destructive hover:text-white"
+                    )}
                     aria-label={`Remove ${design.name}`}
                   >
                     <X size={10} strokeWidth={2.5} />
@@ -216,14 +218,6 @@ export default function MobileDesignsBottomSheet() {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setMobileAddPackOpen(true)}
-            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border py-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary hover:text-primary"
-          >
-            <Plus size={14} />
-            Add another pack
-          </button>
 
           {activeDesign && (
             <div className="mt-2 flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-black/25 px-3 py-2">

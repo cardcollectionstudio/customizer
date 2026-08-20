@@ -178,7 +178,7 @@ export const useStore = create<AppState>((set) => ({
           ...state.packs,
           {
             id: packId,
-            name: `Pack #${packIndex}`,
+            name: `Your Custom Sleeves`,
             size,
             sleeveType,
             material,
